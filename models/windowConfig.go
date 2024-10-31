@@ -9,6 +9,7 @@ type WindowConfig struct {
 	TaskBuffer    *Task
 	TextBuffer    string
 	SelectedTasks []*Task
+	NullArea      *rl.Rectangle
 	Lines         []rl.Vector2
 	Tasks         []*Task
 	WIDTH         int32
@@ -24,7 +25,7 @@ func NewConfig() WindowConfig {
 }
 
 func (w *WindowConfig) Update() {
-	freeMouse := !(w.TaskBuffer != nil && rl.CheckCollisionPointRec(rl.GetMousePosition(), w.TaskBuffer.GetRect()))
+	freeMouse := w.NullArea == nil || !rl.CheckCollisionPointRec(rl.GetMousePosition(), *w.NullArea)
 
 	for _, task := range w.Tasks {
 		if rl.CheckCollisionPointRec(rl.GetMousePosition(), task.GetRect()) {
@@ -40,6 +41,20 @@ func (w *WindowConfig) Update() {
 		task := &Task{
 			Shape: rl.GetMousePosition(),
 		}
+		baseRect := task.GetRect()
+
+		// The position of the rectangle is modified so its never rendered outside the window.
+		// with the camera implementation this code should change to get the position relative to the
+		// camera i guess
+		if baseRect.X+baseRect.Width > float32(w.WIDTH) {
+			baseRect.X = baseRect.X - ((baseRect.X + baseRect.Width) - float32(w.WIDTH))
+		}
+
+		if baseRect.Y+baseRect.Height > float32(w.HEIGHT) {
+			baseRect.Y = baseRect.Y - ((baseRect.Y + baseRect.Height) - float32(w.HEIGHT))
+		}
+
+		w.NullArea = &baseRect
 		w.TaskBuffer = task
 	}
 }
@@ -49,14 +64,26 @@ func (w *WindowConfig) clearBuffers() {
 	w.Lines = make([]rl.Vector2, 0)
 	w.TaskBuffer = nil
 	w.TextBuffer = ""
+	w.NullArea = nil
 }
 
-func (w *WindowConfig) CreateNewTask(baseRect rl.Rectangle) {
-	resp := gui.WindowBox(baseRect, "New task")
+func (w *WindowConfig) CreateNewTask() {
+	resp := gui.WindowBox(*w.NullArea, "New task")
 	var padding float32 = 20
-	gui.TextBox(rl.NewRectangle(baseRect.X+padding, baseRect.Y+padding*1.5, baseRect.Width-padding*2, 30), &w.TextBuffer, 150, true)
-	okButton := gui.Button(rl.NewRectangle(baseRect.X+baseRect.Width-padding-50, baseRect.Y+padding*3.5, 50, 30), "Ok")
-	cancelButton := gui.Button(rl.NewRectangle(baseRect.X+baseRect.Width-padding*2-100, baseRect.Y+padding*3.5, 50, 30), "Cancel")
+	gui.TextBox(
+		rl.NewRectangle(w.NullArea.X+padding, w.NullArea.Y+padding*1.5, w.NullArea.Width-padding*2, 30),
+		&w.TextBuffer,
+		150,
+		true,
+	)
+	okButton := gui.Button(
+		rl.NewRectangle(w.NullArea.X+w.NullArea.Width-padding-50, w.NullArea.Y+padding*3.5, 50, 30),
+		"Ok",
+	)
+	cancelButton := gui.Button(
+		rl.NewRectangle(w.NullArea.X+w.NullArea.Width-padding*2-100, w.NullArea.Y+padding*3.5, 50, 30),
+		"Cancel",
+	)
 
 	if resp || cancelButton {
 		w.clearBuffers()
@@ -103,7 +130,7 @@ func (w *WindowConfig) Draw() {
 
 	// Draw task Buffer
 	if w.TaskBuffer != nil {
-		w.CreateNewTask(w.TaskBuffer.GetRect())
+		w.CreateNewTask()
 	}
 
 	rl.EndDrawing()
