@@ -5,9 +5,10 @@ import rl "github.com/gen2brain/raylib-go/raylib"
 type Task struct {
 	Title         string
 	PreviousTasks []*Task
-	Completed     bool
 	Shape         rl.Vector2
 	Size          int32
+	Completed     bool
+	Dragging      bool
 }
 
 const padding int32 = 5

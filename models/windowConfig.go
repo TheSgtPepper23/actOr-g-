@@ -28,12 +28,22 @@ func (w *WindowConfig) Update() {
 	freeMouse := w.NullArea == nil || !rl.CheckCollisionPointRec(rl.GetMousePosition(), *w.NullArea)
 
 	for _, task := range w.Tasks {
+		if rl.IsMouseButtonDown(rl.MouseButtonLeft) && task.Dragging {
+			task.Shape = rl.GetMousePosition()
+		}
+		if rl.IsMouseButtonReleased(rl.MouseButtonLeft) && task.Dragging {
+			task.Dragging = false
+		}
+
 		if rl.CheckCollisionPointRec(rl.GetMousePosition(), task.GetRect()) {
-			freeMouse = false
+			if rl.IsMouseButtonPressed(rl.MouseButtonLeft) {
+				task.Dragging = true
+			}
 			if rl.IsMouseButtonPressed(rl.MouseButtonRight) {
 				w.Lines = append(w.Lines, task.GetCenter())
 				w.SelectedTasks = append(w.SelectedTasks, task)
 			}
+			freeMouse = false
 		}
 	}
 
