@@ -7,11 +7,12 @@ import (
 
 type WindowConfig struct {
 	TaskBuffer    *Task
+	NullArea      *rl.Rectangle
 	TextBuffer    string
 	SelectedTasks []*Task
-	NullArea      *rl.Rectangle
 	Lines         []rl.Vector2
 	Tasks         []*Task
+	Camera        rl.Camera2D
 	WIDTH         int32
 	HEIGHT        int32
 }
@@ -21,21 +22,50 @@ func NewConfig() WindowConfig {
 		WIDTH:      800,
 		HEIGHT:     600,
 		TaskBuffer: nil,
+		Camera: rl.Camera2D{
+			Offset:   rl.NewVector2(400, 300),
+			Rotation: 0,
+			Target:   rl.Vector2Zero(),
+			Zoom:     1,
+		},
 	}
 }
 
 func (w *WindowConfig) Update() {
+	// nullarea is a gui element so its rendered outside the 2d mode so the real mosuse position should be used
 	freeMouse := w.NullArea == nil || !rl.CheckCollisionPointRec(rl.GetMousePosition(), *w.NullArea)
+
+	if freeMouse && rl.IsKeyDown(rl.KeySpace) && rl.IsMouseButtonDown(rl.MouseButtonLeft) {
+		rl.SetMouseCursor(rl.MouseCursorResizeAll)
+		mouseDelta := rl.GetMouseDelta()
+		mouseDelta = rl.Vector2Scale(mouseDelta, -1.0*w.Camera.Zoom)
+		w.Camera.Target = rl.Vector2Add(w.Camera.Target, mouseDelta)
+	}
+
+	if rl.IsKeyReleased(rl.KeySpace) || rl.IsMouseButtonReleased(rl.MouseLeftButton) {
+		rl.SetMouseCursor(rl.MouseCursorDefault)
+	}
+
+	wheel := rl.GetMouseWheelMove()
+	if wheel != 0 {
+		mouseWorld := rl.GetScreenToWorld2D(rl.GetMousePosition(), w.Camera)
+		w.Camera.Offset = rl.GetMousePosition()
+		w.Camera.Target = mouseWorld
+		w.Camera.Zoom += wheel * 0.325
+		if w.Camera.Zoom < 0.100 {
+			w.Camera.Zoom = 0.100
+		}
+	}
 
 	for _, task := range w.Tasks {
 		if rl.IsMouseButtonDown(rl.MouseButtonLeft) && task.Dragging {
-			task.Shape = rl.GetMousePosition()
+			task.Shape = rl.GetScreenToWorld2D(rl.GetMousePosition(), w.Camera)
 		}
 		if rl.IsMouseButtonReleased(rl.MouseButtonLeft) && task.Dragging {
 			task.Dragging = false
 		}
 
-		if rl.CheckCollisionPointRec(rl.GetMousePosition(), task.GetRect()) {
+		if rl.CheckCollisionPointRec(rl.GetScreenToWorld2D(rl.GetMousePosition(), w.Camera), task.GetRect()) {
 			if rl.IsMouseButtonPressed(rl.MouseButtonLeft) {
 				task.Dragging = true
 			}
@@ -47,11 +77,15 @@ func (w *WindowConfig) Update() {
 		}
 	}
 
-	if rl.IsMouseButtonPressed(rl.MouseButtonLeft) && freeMouse {
+	// Create a new task
+	if rl.IsMouseButtonPressed(rl.MouseButtonLeft) && freeMouse && !rl.IsKeyDown(rl.KeySpace) {
 		task := &Task{
-			Shape: rl.GetMousePosition(),
+			Shape: rl.GetScreenToWorld2D(rl.GetMousePosition(), w.Camera),
 		}
-		baseRect := task.GetRect()
+
+		baseRect := Task{
+			Shape: rl.GetMousePosition(),
+		}.GetRect()
 
 		// The position of the rectangle is modified so its never rendered outside the window.
 		// with the camera implementation this code should change to get the position relative to the
@@ -116,9 +150,10 @@ func (w *WindowConfig) Draw() {
 
 	rl.ClearBackground(rl.RayWhite)
 
+	rl.BeginMode2D(w.Camera)
 	if w.TaskBuffer == nil {
 		for _, line := range w.Lines {
-			rl.DrawLineBezier(line, rl.GetMousePosition(), 4, rl.Blue)
+			rl.DrawLineBezier(line, rl.GetScreenToWorld2D(rl.GetMousePosition(), w.Camera), 4, rl.Blue)
 		}
 	} else {
 		for _, line := range w.Lines {
@@ -137,6 +172,7 @@ func (w *WindowConfig) Draw() {
 	for _, rect := range w.Tasks {
 		rect.Draw()
 	}
+	rl.EndMode2D()
 
 	// Draw task Buffer
 	if w.TaskBuffer != nil {
