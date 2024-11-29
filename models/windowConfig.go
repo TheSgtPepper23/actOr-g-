@@ -7,21 +7,27 @@ import (
 
 type WindowConfig struct {
 	TaskBuffer    *Task
+	LocalFont     rl.Font
 	NullArea      *rl.Rectangle
 	TextBuffer    string
 	SelectedTasks []*Task
 	Lines         []rl.Vector2
 	Tasks         []*Task
+	Buttons       []string
 	Camera        rl.Camera2D
+	MenuRectangle rl.Rectangle
 	WIDTH         int32
 	HEIGHT        int32
 }
 
 func NewConfig() WindowConfig {
+	tempButtons := []string{"Nuevo", "Abrir", "Cerrar", "Guardar", "Guardar como..."}
 	return WindowConfig{
-		WIDTH:      800,
-		HEIGHT:     600,
-		TaskBuffer: nil,
+		WIDTH:         1280,
+		HEIGHT:        720,
+		TaskBuffer:    nil,
+		Buttons:       tempButtons,
+		MenuRectangle: rl.NewRectangle(0, 0, 1280, 60),
 		Camera: rl.Camera2D{
 			Offset:   rl.NewVector2(400, 300),
 			Rotation: 0,
@@ -33,7 +39,7 @@ func NewConfig() WindowConfig {
 
 func (w *WindowConfig) Update() {
 	// nullarea is a gui element so its rendered outside the 2d mode so the real mosuse position should be used
-	freeMouse := w.NullArea == nil || !rl.CheckCollisionPointRec(rl.GetMousePosition(), *w.NullArea)
+	freeMouse := (w.NullArea == nil || !rl.CheckCollisionPointRec(rl.GetMousePosition(), *w.NullArea)) && !rl.CheckCollisionPointRec(rl.GetMousePosition(), w.MenuRectangle)
 
 	if freeMouse && rl.IsKeyDown(rl.KeySpace) && rl.IsMouseButtonDown(rl.MouseButtonLeft) {
 		rl.SetMouseCursor(rl.MouseCursorResizeAll)
@@ -77,7 +83,7 @@ func (w *WindowConfig) Update() {
 		}
 	}
 
-	// Create a new task
+	// Create a new TaskBuffer
 	if rl.IsMouseButtonPressed(rl.MouseButtonLeft) && freeMouse && !rl.IsKeyDown(rl.KeySpace) {
 		task := &Task{
 			Shape: rl.GetScreenToWorld2D(rl.GetMousePosition(), w.Camera),
@@ -179,5 +185,14 @@ func (w *WindowConfig) Draw() {
 		w.CreateNewTask()
 	}
 
+	// Menu area
+
+	gui.Panel(w.MenuRectangle, "")
+	var buttonWide float32 = 100
+	var buttonPadding float32 = 15
+	for i, button := range w.Buttons {
+		i := float32(i)
+		gui.Button(rl.NewRectangle(buttonPadding+buttonWide*i+buttonPadding*i, buttonPadding, buttonWide, 30), button)
+	}
 	rl.EndDrawing()
 }
